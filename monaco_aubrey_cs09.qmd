@@ -1,7 +1,8 @@
 ---
 title: "cs09: Weather Impacts on Buffalo Traffic"
 subtitle: "Using Open Data APIs"
-format: html
+format: 
+  html: default
 editor: visual
 ---
 
@@ -19,6 +20,8 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(tidyr)
+library(knitr)
+library(quarto)
 
 # ==== USER SETTINGS ====
 cdo_token <- "fiIVgrYYVdiXYBLIairHbbComGlDHqrM"
@@ -65,8 +68,15 @@ noaa_table <- noaa_table %>%
   mutate(attributes = NULL)
  
 noaa_table <- noaa_table[!duplicated(noaa_table), ]
-```
+kable(noaa_table[1:10, ], format = "pipe")
 
+```
+```{r}
+
+ggplot(data = noaa_table) + geom_line(aes(x = date, y = SNOW), color = "darkgreen", linetype = "dashed") + geom_line(aes(x = date, y = TMIN), color = "darkblue")
+
+
+```
 
 ```{r}
 
@@ -86,6 +96,8 @@ traffic <- fromJSON(traffic_res)
 
 as_tibble(traffic)
 
+kable(traffic[1:10, ], format = "pipe")
+
 traffic <- traffic %>%
   mutate(date = as_date(report_date)) %>%
   group_by(date) %>%
@@ -104,8 +116,12 @@ weather_traffic <- noaa_table %>% left_join(traffic)
 weather_traffic <- weather_traffic %>%
   replace_na(list(x = 0)) %>%
   mutate(date = as_date(date)) %>%
-  mutate(weekday = wday(date))
+  mutate(weekday = wday(date, label = TRUE))
 
+custom_breaks <- c(-1, 10, 50, 100, 150, 500)
+
+weather_traffic <- weather_traffic %>%
+  mutate(snow_cut = cut(SNOW, breaks = custom_breaks))
 
 ggplot(weather_traffic) + geom_line(aes(x = date, y = complaintid), color = "red") + geom_line(aes(x = date, y = SNOW), color = "darkgreen", linetype = "dashed")
 ```
@@ -114,9 +130,34 @@ ggplot(weather_traffic) + geom_line(aes(x = date, y = complaintid), color = "red
 
 ```{r}
 
-weather_traffic_cut <- weather_traffic %>%
-  mutate(cuts = cut(weekday, breaks = c(1, 2, 3, 4, 5, 6, 7)))
+weekday_box <- boxplot(complaintid~weekday, data = weather_traffic)
 
+```
 
+```{r}
+
+snow_box <- boxplot(complaintid~snow_cut, data = weather_traffic)
+
+```
+
+```{r}
+
+ggplot(data = weather_traffic, aes(x = SNOW, y = complaintid)) + geom_point(aes(color = weekday)) + geom_smooth(method = "lm")
+```
+
+```{r}
+weather_traffic <- weather_traffic %>%
+  mutate(log_precip = log1p(PRCP))
+
+ggplot(data = weather_traffic, aes(x = PRCP, y = complaintid)) + geom_point(aes(color = weekday)) + geom_smooth(method = "lm") + xlim(c(0, 20))
+```
+## Fit a Linear Model
+```{r}
+
+lm_model <- lm(complaintid ~ SNOW + PRCP + weekday, data = weather_traffic)
+
+tidy_model <- broom::tidy(lm_model)
+
+kable(tidy_model, format = "pipe")
 ```
 
