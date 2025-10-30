@@ -6,12 +6,11 @@ editor: visual
 ---
 
 ## Data Sources
+
 Two complementary datasets:
 
-1. Weather Data – NOAA’s Climate Data Online (CDO) API
-Provides daily temperature, rainfall, and snowfall from local weather stations.
-2. Traffic Incident Data – City of Buffalo’s Open Data Portal
-Contains daily reports of 911 and 311 calls, including traffic incidents.
+1.  Weather Data – NOAA’s Climate Data Online (CDO) API Provides daily temperature, rainfall, and snowfall from local weather stations.
+2.  Traffic Incident Data – City of Buffalo’s Open Data Portal Contains daily reports of 911 and 311 calls, including traffic incidents.
 
 ```{r, message=FALSE, warning=FALSE}
 library(httr)
@@ -19,9 +18,11 @@ library(jsonlite)
 library(dplyr)
 library(lubridate)
 library(ggplot2)
+library(tidyr)
 
 # ==== USER SETTINGS ====
-cdo_token <- "fiIVgrYYVdiXYBLIairHbbComGlDHqrM"  # Get one at https://www.ncdc.noaa.gov/cdo-web/token
+cdo_token <- "fiIVgrYYVdiXYBLIairHbbComGlDHqrM"
+
 lat <- 42.8864
 lon <- -78.8784
 start_date <- "2024-10-01" 
@@ -36,12 +37,86 @@ params <- list(
   enddate = end_date,
   datatypeid = "TMIN,PRCP,SNOW",
   units = "metric",
-  limit = 1000
+  limit = 1000,
+  Token = cdo_token
 )
 ```
+
 ## Write the API Call Using httr
 
 ```{r, message=FALSE, warning=FALSE}
 
-GET("data_url")
+response <- GET(data_url, query = params, add_headers(Token = cdo_token)) %>%
+  content(as = "text")
+
+noaa <- fromJSON(response) 
+
+noaa <- noaa$results
+
+noaa <- noaa %>%
+  mutate(date = as_date(noaa$date))
+
+noaa_table <- noaa %>%
+  pivot_wider(names_from = datatype, values_from = value)
+
+noaa_table <- noaa_table %>%
+  group_by(date) %>%
+  summarise(across(everything(), na.omit)) %>%
+  mutate(attributes = NULL)
+ 
+noaa_table <- noaa_table[!duplicated(noaa_table), ]
+```
+
+
+```{r}
+
+# ==== API CALL ====
+socrata_url <- "https://data.buffalony.gov/resource/6at3-hpb5.json"
+soc_params <- list(
+  "$limit" = 5000,
+  "$where" = 
+  "report_date >= '2024-10-01' AND
+  report_date <= '2025-03-31'"
+)
+
+traffic_res <- GET(socrata_url, query = soc_params) %>%
+  content(as = "text")
+
+traffic <- fromJSON(traffic_res) 
+
+as_tibble(traffic)
+
+traffic <- traffic %>%
+  mutate(date = as_date(report_date)) %>%
+  group_by(date) %>%
+  summarise(complaintid = n())
+
+ggplot(traffic) + geom_line(aes(x = date, y = complaintid))
+```
+
+## Merge Weather and Traffic Data
+
+```{r, message=FALSE, warning=FALSE}
+
+
+weather_traffic <- noaa_table %>% left_join(traffic)
+
+weather_traffic <- weather_traffic %>%
+  replace_na(list(x = 0)) %>%
+  mutate(date = as_date(date)) %>%
+  mutate(weekday = wday(date))
+
+
+ggplot(weather_traffic) + geom_line(aes(x = date, y = complaintid), color = "red") + geom_line(aes(x = date, y = SNOW), color = "darkgreen", linetype = "dashed")
+```
+
+## Visual Exploration - Accidents vs. Weather
+
+```{r}
+
+weather_traffic_cut <- weather_traffic %>%
+  mutate(cuts = cut(weekday, breaks = c(1, 2, 3, 4, 5, 6, 7)))
+
+
+```
 
