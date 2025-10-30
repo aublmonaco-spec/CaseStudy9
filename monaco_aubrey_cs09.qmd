@@ -1,0 +1,47 @@
+---
+title: "cs09: Weather Impacts on Buffalo Traffic"
+subtitle: "Using Open Data APIs"
+format: html
+editor: visual
+---
+
+## Data Sources
+Two complementary datasets:
+
+1. Weather Data – NOAA’s Climate Data Online (CDO) API
+Provides daily temperature, rainfall, and snowfall from local weather stations.
+2. Traffic Incident Data – City of Buffalo’s Open Data Portal
+Contains daily reports of 911 and 311 calls, including traffic incidents.
+
+```{r, message=FALSE, warning=FALSE}
+library(httr)
+library(jsonlite)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+
+# ==== USER SETTINGS ====
+cdo_token <- "fiIVgrYYVdiXYBLIairHbbComGlDHqrM"  # Get one at https://www.ncdc.noaa.gov/cdo-web/token
+lat <- 42.8864
+lon <- -78.8784
+start_date <- "2024-10-01" 
+end_date   <- "2025-03-31"
+
+# ==== API CALL ====
+data_url <- "https://www.ncei.noaa.gov/cdo-web/api/v2/data"
+params <- list(
+  datasetid = "GHCND",
+  stationid = "GHCND:USW00014733",   # Buffalo Airport
+  startdate = start_date,
+  enddate = end_date,
+  datatypeid = "TMIN,PRCP,SNOW",
+  units = "metric",
+  limit = 1000
+)
+```
+## Write the API Call Using httr
+
+```{r, message=FALSE, warning=FALSE}
+
+GET("data_url")
+
