@@ -1,30 +1,18 @@
----
-title: "cs09: Weather Impacts on Buffalo Traffic"
-subtitle: "Using Open Data APIs"
-format: 
-  html: default
-editor: visual
----
+#Data Sources:
+#Two complementary datasets:
+#1.  Weather Data – NOAA’s Climate Data Online (CDO) API Provides daily temperature, rainfall, and snowfall from local weather stations.
+#2.  Traffic Incident Data – City of Buffalo’s Open Data Portal Contains daily reports of 911 and 311 calls, including traffic incidents.
 
-## Data Sources
+#Retrieve the Data
 
-Two complementary datasets:
+#Data was retrieved using httr:httr, content:httr, and jsonlite:endJSON
 
-1.  Weather Data – NOAA’s Climate Data Online (CDO) API Provides daily temperature, rainfall, and snowfall from local weather stations.
-2.  Traffic Incident Data – City of Buffalo’s Open Data Portal Contains daily reports of 911 and 311 calls, including traffic incidents.
-
-## Retrieve the Data
-
-Data was retrieved using httr:httr, content:httr, and jsonlite:endJSON
-
-```{r, message=FALSE, warning=FALSE}
 library(httr)
 library(jsonlite)
 library(dplyr)
 library(tidyr)
 library(lubridate)
 library(ggplot2)
-
 library(knitr)
 
 # ==== USER SETTINGS ====
@@ -46,11 +34,8 @@ params <- list(
   units = "metric",
   limit = 1000
 )
-```
 
 ## Write the API Call Using httr
-
-```{r, message=FALSE, warning=FALSE}
 
 #Had to use add_headers inside of the GET call to apply my access token
 #Had to use as = "text" to convert data to a format endJSON could read
@@ -84,17 +69,9 @@ noaa_table <- noaa_table[!duplicated(noaa_table), ]
 #Used kable to see some of the data
 kable(noaa_table[1:10, ], format = "pipe")
 
-```
-
-```{r}
-
 #Plotted temperature and snowfall over time
 ggplot(data = noaa_table) + geom_line(aes(x = date, y = SNOW), color = "darkgreen", linetype = "dashed") + geom_line(aes(x = date, y = TMIN), color = "darkblue") + labs(title = "Daily Min Temperature and Snowfall (Buffalo Airport)", x = " Date", y = "Temperature(C)/Snow")
 
-
-```
-
-```{r}
 
 # ==== API CALL ====
 
@@ -103,7 +80,7 @@ socrata_url <- "https://data.buffalony.gov/resource/6at3-hpb5.json"
 soc_params <- list(
   "$limit" = 5000,
   "$where" = 
-  "report_date >= '2024-10-01' AND
+    "report_date >= '2024-10-01' AND
   report_date <= '2025-03-31'"
 )
 
@@ -131,8 +108,6 @@ ggplot(traffic) + geom_line(aes(x = date, y = complaintid)) + labs(title = "Dail
 
 ## Merge Weather and Traffic Data
 
-```{r, message=FALSE, warning=FALSE}
-
 #Combined weather and traffic data
 weather_traffic <- noaa_table %>% left_join(traffic)
 
@@ -150,42 +125,32 @@ weather_traffic <- weather_traffic %>%
   mutate(snow_cut = cut(SNOW, breaks = custom_breaks))
 
 ggplot(weather_traffic) + geom_line(aes(x = date, y = complaintid), color = "red") + geom_line(aes(x = date, y = SNOW), color = "darkgreen", linetype = "dashed") + labs(title = "Accidents vs. Snowfall Overtime", x = "Date", y = "Accidents/Snow")
-```
 
 ## Visual Exploration - Accidents vs. Weather
 
-```{r}
 #Accidents by day of the week boxplot
 weekday_box <- boxplot(complaintid~weekday, data = weather_traffic, xlab = "Day of Week", ylab = "Accident Count", main = "Accidents by Day of the Week")
 
-```
-
-```{r}
 #Accidents by snowfall amount boxplot
 snow_box <- boxplot(complaintid~snow_cut, data = weather_traffic,  xlab = "Snowfall (mm)", ylab = "Accident Count", main = "Accidents by Snowfall")
 
-```
-
-```{r}
 #Linear graph of Accidents vs. Snowfall
 ggplot(data = weather_traffic, aes(x = SNOW, y = complaintid)) + geom_point(aes(color = weekday)) + geom_smooth(method = "lm") + labs(title = "Accidents vs. Snowfall", x = "Snow (mm)", y = "Accident Count", color = "Day of the Week")
-```
 
-```{r}
 #Linear graph of Accidents vs. Rainfall
 weather_traffic <- weather_traffic %>%
   mutate(log_precip = log1p(PRCP))
 
 ggplot(data = weather_traffic, aes(x = PRCP, y = complaintid)) + geom_point(aes(color = weekday)) + geom_smooth(method = "lm") + labs(title = "Accidents vs. Rainfall", x = "Rain (mm)", y = "Accident Count")
-```
+
 
 ## Fit a Linear Model
 
-```{r}
+
 #Regression model (complaintid relationship to snow and precip) showing expected increases in prcp and snow with increased accidents (prcp seems to have a stronger influence)
 lm_model <- lm(complaintid ~ SNOW + PRCP, data = weather_traffic)
 
 tidy_model <- broom::tidy(lm_model)
 
 kable(tidy_model, format = "pipe")
-```
+
